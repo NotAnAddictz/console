@@ -88,6 +88,8 @@ tests:
     template: templates/deployment.yaml
     set:
       autoscaling.enabled: true
+      resources.requests.cpu: null
+      resources.limits: null
     asserts:
       - failedTemplate:
           errorMessage: autoscaling CPU target requires resources.requests.cpu or resources.limits.cpu
@@ -98,6 +100,8 @@ tests:
       autoscaling.targetCPUUtilizationPercentage: null
       autoscaling.targetMemoryUtilizationPercentage: 70
       resources.requests.memory: 128Mi
+      authProxy.resources.requests.memory: null
+      authProxy.resources.limits: null
     asserts:
       - failedTemplate:
           errorMessage: autoscaling memory target requires authProxy.resources.requests.memory or authProxy.resources.limits.memory

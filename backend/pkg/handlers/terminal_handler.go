@@ -135,13 +135,22 @@ func sessionFor(start *startMessage) ([]string, []openshell.ExecOptions) {
 }
 
 type TerminalHandler struct {
-	svc services.ExecServiceInterface
+	svc         services.ExecServiceInterface
+	idleTimeout time.Duration
 }
 
 func NewTerminalHandler(svc services.ExecServiceInterface) *TerminalHandler {
 	return &TerminalHandler{
 		svc: svc,
 	}
+}
+
+// SetIdleTimeout sets how long a terminal may go without input from the
+// browser before the BFF closes it. Output from the sandbox does not count:
+// a user who only watches still has to type to stay. Zero turns it off. Call
+// it before the handler serves requests.
+func (h *TerminalHandler) SetIdleTimeout(timeout time.Duration) {
+	h.idleTimeout = timeout
 }
 
 func parseDimensions(r *http.Request) (cols, rows uint32) {
@@ -259,6 +268,9 @@ func (h *TerminalHandler) Terminal(w http.ResponseWriter, r *http.Request) {
 	go relaySessionToWS(ws, session, cancel)
 
 	for {
+		if h.idleTimeout > 0 {
+			_ = ws.SetReadDeadline(time.Now().Add(h.idleTimeout))
+		}
 		msgType, data, readErr := ws.ReadMessage()
 		if readErr != nil {
 			cancel()

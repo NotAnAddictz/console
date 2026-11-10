@@ -5,6 +5,7 @@ templates:
   - templates/deployment.yaml
   - templates/service.yaml
   - templates/networkpolicy.yaml
+  - templates/route.yaml
 release:
   name: openshell
   namespace: my-namespace
@@ -285,3 +286,96 @@ tests:
     asserts:
       - failedTemplate:
           errorMessage: podLabels cannot override app.kubernetes.io/name or app.kubernetes.io/instance
+  - it: runs both containers with a read-only root filesystem and RuntimeDefault seccomp
+    template: templates/deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem
+          value: true
+      - equal:
+          path: spec.template.spec.containers[1].securityContext.readOnlyRootFilesystem
+          value: true
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.seccompProfile.type
+          value: RuntimeDefault
+      - equal:
+          path: spec.template.spec.containers[1].securityContext.seccompProfile.type
+          value: RuntimeDefault
+  - it: sets CPU and memory requests and a memory limit on both containers by default
+    template: templates/deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].resources.requests.memory
+          value: 128Mi
+      - equal:
+          path: spec.template.spec.containers[0].resources.limits.memory
+          value: 256Mi
+      - equal:
+          path: spec.template.spec.containers[1].resources.requests.cpu
+          value: 50m
+      - equal:
+          path: spec.template.spec.containers[1].resources.limits.memory
+          value: 128Mi
+  - it: passes the terminal idle timeout to the BFF
+    template: templates/deployment.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: TERMINAL_IDLE_TIMEOUT
+            value: "30m"
+  - it: limits connections and requests per client IP on the Route
+    template: templates/route.yaml
+    set:
+      openshiftRoute.enabled: true
+      openshiftRoute.host: dashboard.example.com
+    asserts:
+      - equal:
+          path: metadata.annotations["haproxy.router.openshift.io/rate-limit-connections"]
+          value: "true"
+      - equal:
+          path: metadata.annotations["haproxy.router.openshift.io/rate-limit-connections.concurrent-tcp"]
+          value: "200"
+      - equal:
+          path: metadata.annotations["haproxy.router.openshift.io/rate-limit-connections.rate-http"]
+          value: "300"
+      - equal:
+          path: metadata.annotations["haproxy.router.openshift.io/timeout-tunnel"]
+          value: 1h
+  - it: omits route rate limits when disabled
+    template: templates/route.yaml
+    set:
+      openshiftRoute.enabled: true
+      openshiftRoute.host: dashboard.example.com
+      openshiftRoute.rateLimit.enabled: false
+    asserts:
+      - notExists:
+          path: metadata.annotations["haproxy.router.openshift.io/rate-limit-connections"]
+  - it: allows egress only to DNS, the gateway and HTTPS
+    template: templates/networkpolicy.yaml
+    asserts:
+      - lengthEqual:
+          path: spec.egress
+          count: 3
+      - equal:
+          path: spec.egress[0].to[0].namespaceSelector.matchLabels["kubernetes.io/metadata.name"]
+          value: openshift-dns
+      - equal:
+          path: spec.egress[1].to[0].namespaceSelector.matchLabels["kubernetes.io/metadata.name"]
+          value: my-namespace
+      - equal:
+          path: spec.egress[1].ports[0].port
+          value: 8080
+      - equal:
+          path: spec.egress[2].ports[0].port
+          value: 443
+  - it: omits egress rules when egress restriction is disabled
+    template: templates/networkpolicy.yaml
+    set:
+      networkPolicy.egress.enabled: false
+    asserts:
+      - equal:
+          path: spec.policyTypes
+          value: [Ingress]
+      - notExists:
+          path: spec.egress

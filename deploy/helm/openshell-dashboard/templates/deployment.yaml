@@ -48,6 +48,8 @@ spec:
               value: {{ .Values.dashboard.port | quote }}
             - name: LISTEN_ADDRESS
               value: "127.0.0.1"
+            - name: TERMINAL_IDLE_TIMEOUT
+              value: {{ .Values.dashboard.terminalIdleTimeout | quote }}
             - name: AUTH_DISABLED
               value: "false"
             - name: AUTH_USER_HEADER

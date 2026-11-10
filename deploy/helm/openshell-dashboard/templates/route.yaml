@@ -7,7 +7,13 @@ metadata:
   name: {{ include "openshell-dashboard.fullname" . }}
   labels:
     {{- include "openshell-dashboard.labels" . | nindent 4 }}
-  {{- with .Values.openshiftRoute.annotations }}
+  {{- $annotations := deepCopy .Values.openshiftRoute.annotations }}
+  {{- if .Values.openshiftRoute.rateLimit.enabled }}
+  {{- $annotations = set $annotations "haproxy.router.openshift.io/rate-limit-connections" "true" }}
+  {{- $annotations = set $annotations "haproxy.router.openshift.io/rate-limit-connections.concurrent-tcp" (toString .Values.openshiftRoute.rateLimit.concurrentTCP) }}
+  {{- $annotations = set $annotations "haproxy.router.openshift.io/rate-limit-connections.rate-http" (toString .Values.openshiftRoute.rateLimit.rateHTTP) }}
+  {{- end }}
+  {{- with $annotations }}
   annotations:
     {{- toYaml . | nindent 4 }}
   {{- end }}

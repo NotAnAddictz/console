@@ -27,6 +27,8 @@ dashboard:
     pullPolicy: null
   # -- Dashboard container port (loopback only; never exposed via Service).
   port: 8080
+  # -- Close a terminal this long after its last keystroke, as a Go duration (30m, 1h). 0 turns the timeout off.
+  terminalIdleTimeout: 30m
   # -- Browser-facing sign-out URL; rd returns to oauth2-proxy sign-in after clearing the session.
   logoutURL: /oauth2/sign_out?rd=/oauth2/sign_in
 
@@ -54,7 +56,12 @@ authProxy:
     # -- Interval for refreshing the access token; set below the issuer's access-token lifetime. Empty disables refresh.
     refresh: 2m
   # -- Resource requests/limits for oauth2-proxy.
-  resources: {}
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      memory: 128Mi
   tls:
     # -- Secret with tls.crt/tls.key for HTTPS proxy backend (required for Route reencrypt).
     secretName: ""
@@ -102,6 +109,11 @@ securityContext:
   capabilities:
     # -- Drop all Linux capabilities.
     drop: [ALL]
+  # -- Mount the root filesystem read-only. Neither container writes to it.
+  readOnlyRootFilesystem: true
+  seccompProfile:
+    # -- Seccomp profile type for both containers.
+    type: RuntimeDefault
 
 service:
   # -- Service type. Only oauth2-proxy is served.
@@ -189,8 +201,13 @@ podLifecycle:
   # -- Pod termination grace period in seconds.
   terminationGracePeriodSeconds: 30
 
-# -- Dashboard resource requests/limits.
-resources: {}
+# -- Dashboard resource requests/limits. No CPU limit: a CPU limit throttles the BFF without protecting the node.
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    memory: 256Mi
 # -- Node selector.
 nodeSelector: {}
 # -- Tolerations.
@@ -217,6 +234,15 @@ networkPolicy:
   ingressNamespace: ""
   # -- Optional ingress peers replacing the default namespace selector (e.g. host-network routers or Gateway data-plane pods).
   ingressFrom: []
+  egress:
+    # -- Restrict egress to DNS, the gateway and HTTPS (the identity provider). Enforced by OpenShift's SDN.
+    enabled: true
+    # -- Namespace of the cluster DNS pods.
+    dnsNamespace: openshift-dns
+    # -- Port of the gateway Service, in the release namespace.
+    gatewayPort: 8080
+    # -- Extra egress rules appended as they are, e.g. for a gateway in another namespace.
+    extraRules: []
 
 openshiftRoute:
   # -- Create an edge/reencrypt OpenShift Route (never passthrough).
@@ -231,6 +257,14 @@ openshiftRoute:
   annotations:
     haproxy.router.openshift.io/timeout: 300s
     haproxy.router.openshift.io/timeout-tunnel: 1h
+  # -- Limits the router applies to the whole Route host, per client IP (not per path). They slow brute-force sign-in attempts and cap connections. Tune them for your users; a corporate NAT shares one IP.
+  rateLimit:
+    # -- Apply the limits below.
+    enabled: true
+    # -- Concurrent connections per client IP. Terminals and log streams are long-lived connections.
+    concurrentTCP: 200
+    # -- HTTP requests per client IP in each 3-second window.
+    rateHTTP: 300
 
 httpRoute:
   # -- Create a Gateway API HTTPRoute to the proxy Service.

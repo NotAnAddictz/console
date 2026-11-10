@@ -20,6 +20,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/ai-openshell/console/backend/pkg/auth"
 	"github.com/ai-openshell/console/backend/pkg/models"
@@ -57,6 +58,7 @@ func main() {
 		userRole          = flag.String("user-role", envOr("USER_ROLE", "user"), "role name that grants standard user access (env USER_ROLE)")
 		releaseLine       = flag.String("gateway-release-line", envOr("GATEWAY_RELEASE_LINE", models.BuiltInGatewayReleaseLine), "gateway release line this build is for, major.minor; the default is compiled in, override it only for tests and local development (env GATEWAY_RELEASE_LINE)")
 		logoutURL         = flag.String("logout-url", envOr("LOGOUT_URL", "/oauth2/sign_out?rd=/oauth2/sign_in"), "auth proxy sign-out URL to redirect to on logout (env LOGOUT_URL)")
+		idleTimeout       = flag.String("terminal-idle-timeout", envOr("TERMINAL_IDLE_TIMEOUT", "30m"), "close a terminal this long after its last input; 0 turns it off (env TERMINAL_IDLE_TIMEOUT)")
 	)
 	flag.Parse()
 
@@ -111,6 +113,12 @@ func main() {
 	app.SetGatewayReleaseLine(line)
 	app.SetProviderCredentialKeys(clients.raw)
 	app.SetProviderProfiles(clients.raw)
+
+	terminalIdle, err := time.ParseDuration(*idleTimeout)
+	if err != nil || terminalIdle < 0 {
+		exitOnError("TERMINAL_IDLE_TIMEOUT must be a duration such as 30m, or 0 to turn it off", err)
+	}
+	app.SetTerminalIdleTimeout(terminalIdle)
 
 	addr := net.JoinHostPort(*listenAddress, *port)
 	slog.Info("openshell-dashboard BFF listening",

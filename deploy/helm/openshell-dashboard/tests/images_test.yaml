@@ -86,6 +86,8 @@ tests:
     set:
       autoscaling.enabled: true
       resources.requests.cpu: 100m
+      authProxy.resources.requests.cpu: null
+      authProxy.resources.limits: null
     asserts:
       - failedTemplate:
           errorMessage: autoscaling CPU target requires authProxy.resources.requests.cpu or authProxy.resources.limits.cpu

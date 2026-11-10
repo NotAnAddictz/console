@@ -257,7 +257,7 @@ tests:
     asserts:
       - equal:
           path: spec.policyTypes
-          value: [Ingress]
+          value: [Ingress, Egress]
       - equal:
           path: spec.ingress[0].ports[0].port
           value: 9443

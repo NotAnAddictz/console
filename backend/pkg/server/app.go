@@ -6,6 +6,7 @@ import (
 	"os"
 	"path"
 	"strings"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	chimiddleware "github.com/go-chi/chi/v5/middleware"
@@ -134,6 +135,13 @@ func (app *App) SetProviderCredentialKeys(keys services.ProviderCredentialKeyRea
 // Call it before Routes.
 func (app *App) SetProviderProfiles(profiles services.ProviderProfileStore) {
 	app.providers.SetProfileStore(profiles)
+}
+
+// SetTerminalIdleTimeout sets how long a terminal may go without input before
+// the BFF closes it; zero turns that off. Like SetProviderProfiles it is a
+// method rather than a NewApp parameter. Call it before Routes.
+func (app *App) SetTerminalIdleTimeout(timeout time.Duration) {
+	app.terminal.SetIdleTimeout(timeout)
 }
 
 // Routes builds the chi router.

@@ -19,7 +19,7 @@ ARG DASHBOARD_COMMIT=""
 RUN npm run build
 
 # --- Backend build ---
-FROM golang:1.26.7-alpine AS backend
+FROM golang:1.26.10-alpine AS backend
 WORKDIR /app/backend
 COPY backend/go.mod backend/go.sum ./
 RUN go mod download
@@ -27,8 +27,14 @@ COPY backend/ ./
 RUN CGO_ENABLED=0 go build -o /out/server ./cmd/server
 
 # --- Runtime ---
-FROM alpine:3.20
+FROM alpine:3.24
+# Apply the latest Alpine security patches to the base image at build time.
+RUN apk update && apk upgrade --no-cache
 RUN adduser -D -u 1001 dashboard
+# Remove the package manager. Nothing in the image installs packages at
+# runtime, and this is the last step that needs root, so it comes before USER.
+RUN apk del --no-cache apk-tools \
+    && rm -rf /etc/apk /lib/apk /var/cache/apk /usr/share/apk
 USER 1001
 COPY --from=backend /out/server /usr/local/bin/openshell-dashboard
 COPY --from=frontend /app/frontend/dist /srv/static
